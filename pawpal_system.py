@@ -27,8 +27,10 @@ class Task:
 
     def mark_complete(self) -> Optional["Task"]:
         """Mark this task done and return the next occurrence if it recurs."""
+        if self.completed:
+            return None
         self.completed = True
-        step = FREQUENCY_DAYS.get(self.frequency)
+        step =FREQUENCY_DAYS.get(self.frequency)
         if step is None:
             return None
         return Task(
@@ -152,16 +154,21 @@ class Scheduler:
         return next_task
 
     def detect_conflicts(self) -> list[str]:
-        """Return a warning for each time slot shared by two or more open tasks."""
-        slots: dict[tuple[date, str], list[Task]] = {}
-        for task in self.filter_tasks(completed=False):
-            slots.setdefault((task.due_date, task.time), []).append(task)
-        return [
-            f"Conflict on {day} at {time}: "
-            + ", ".join(f"{t.description} ({t.pet_name})" for t in tasks)
-            for (day, time), tasks in sorted(slots.items())
-            if len(tasks) > 1
-        ]
+        """Return a warning for each pair of open tasks whose time ranges overlap."""
+        open_tasks = self.sort_by_time(self.filter_tasks(completed=False))
+        warnings = []
+        for i, first in enumerate(open_tasks):
+            for second in open_tasks[i + 1 :]:
+                if first.due_date != second.due_date:
+                    continue
+                first_end = first.start_minutes() + first.duration_minutes
+                if second.start_minutes() < first_end:
+                    warnings.append(
+                        f"Conflict on {first.due_date}: {first.description} ({first.pet_name}, "
+                        f"{first.time} for {first.duration_minutes} min) overlaps "
+                        f"{second.description} ({second.pet_name}, {second.time})"
+                    )
+        return warnings
 
     def next_available_slot(
         self, day: date, duration_minutes: int, day_start: str = "08:00", day_end: str = "20:00"

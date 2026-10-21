@@ -87,3 +87,24 @@ def test_json_round_trip(owner, tmp_path):
     loaded = Owner.load_from_json(path)
     assert [t.description for t in loaded.get_all_tasks()] == [t.description for t in owner.get_all_tasks()]
     assert loaded.get_all_tasks()[0].due_date == TODAY
+
+
+def test_overlapping_times_are_flagged_even_if_start_times_differ(owner):
+    owner.get_pet("Mochi").tasks[1].duration_minutes = 30  # 08:00 to 08:30
+    owner.get_pet("Luna").add_task(Task("Medication", "08:15", due_date=TODAY, duration_minutes=5))
+    assert len(Scheduler(owner).detect_conflicts()) == 1
+
+
+def test_back_to_back_tasks_do_not_conflict(owner):
+    owner.get_pet("Mochi").tasks[1].duration_minutes = 30  # ends 08:30
+    owner.get_pet("Luna").add_task(Task("Medication", "08:30", due_date=TODAY))
+    assert Scheduler(owner).detect_conflicts() == []
+
+
+def test_completing_a_recurring_task_twice_does_not_duplicate_it(owner):
+    scheduler = Scheduler(owner)
+    walk = owner.get_pet("Mochi").tasks[1]
+    scheduler.mark_task_complete(walk)
+    count = len(owner.get_pet("Mochi").tasks)
+    assert scheduler.mark_task_complete(walk) is None
+    assert len(owner.get_pet("Mochi").tasks) == count
