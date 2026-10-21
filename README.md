@@ -63,7 +63,7 @@ Time   Pet        Task                Min  Pri  Status
 19:00  🐱 Luna     Brush fur            15  🟢   ⏳ open
 
 Conflict check:
-  ⚠️  Conflict on 2026-10-21 at 08:00: Morning walk (Mochi), Give medication (Luna)
+  ⚠️  Conflict on 2026-10-21: Morning walk (Mochi, 08:00 for 30 min) overlaps Give medication (Luna, 08:00)
 
 Completed 'Morning walk'. Next occurrence: 2026-10-22 at 08:00
 
@@ -86,20 +86,20 @@ Saved and reloaded 6 tasks for Jordan from data.json
 python -m pytest
 ```
 
-The 12 tests cover: task completion, adding a task to a pet, chronological sorting across pets, priority sorting, filtering by pet and status, daily recurrence (next task lands on the following day), one-off tasks not recurring, conflict detection (and no false positives), a pet with no tasks, next-available-slot, and a JSON save/load round trip.
+The 15 tests cover: task completion, adding a task to a pet, chronological sorting across pets, priority sorting, filtering by pet and status, daily recurrence (next task lands on the following day), one-off tasks not recurring, conflict detection (same start, overlapping ranges, back-to-back tasks not flagged), a pet with no tasks, next-available-slot, and completing a recurring task twice not duplicating it, and a JSON save/load round trip.
 
 ```
 ============================= test session starts ==============================
 platform darwin -- Python 3.11.7, pytest-9.1.1, pluggy-1.7.0
 plugins: anyio-4.15.1
-collected 12 items
+collected 15 items
 
-tests/test_pawpal.py ............                                        [100%]
+tests/test_pawpal.py ...............                                     [100%]
 
-============================== 12 passed in 0.02s ==============================
+============================== 15 passed in 0.02s ==============================
 ```
 
-Confidence level: ⭐⭐⭐⭐ (4/5). Core behaviors and the main edge cases pass; conflicts only match exact start times, and there is no input validation for malformed `HH:MM` strings outside the UI.
+Confidence level: ⭐⭐⭐⭐ (4/5). Core behaviors and the main edge cases pass; conflicts compare time ranges but ignore tasks that cross midnight, and there is no input validation for malformed `HH:MM` strings outside the UI.
 
 ## 📐 Smarter Scheduling
 
@@ -107,7 +107,7 @@ Confidence level: ⭐⭐⭐⭐ (4/5). Core behaviors and the main edge cases pas
 |---------|-----------|-------|
 | Task sorting | `Scheduler.sort_by_time()`, `Scheduler.sort_by_priority()` | Time sort uses `(due_date, "HH:MM")` as the key, which sorts correctly because times are zero padded. Priority sort puts high first, then time. |
 | Filtering | `Scheduler.filter_tasks(pet_name, completed)` | Either filter can be omitted. Works across all pets. |
-| Conflict handling | `Scheduler.detect_conflicts()` | Returns warning strings (never raises) for open tasks sharing the same date and start time, across pets. Shown with `st.warning` in the UI. |
+| Conflict handling | `Scheduler.detect_conflicts()` | Returns warning strings (never raises) for open tasks on the same date whose time ranges overlap (start + duration), within or across pets. Shown with `st.warning` in the UI. |
 | Recurring tasks | `Task.mark_complete()`, `Scheduler.mark_task_complete()` | Daily adds 1 day, weekly adds 7 days via `timedelta`; the new task is added to the same pet. |
 | Next free slot | `Scheduler.next_available_slot()` | Walks the day's open tasks by start time and returns the earliest gap that fits the requested duration (08:00 to 20:00 window). |
 
@@ -116,6 +116,7 @@ Confidence level: ⭐⭐⭐⭐ (4/5). Core behaviors and the main edge cases pas
 - **Advanced algorithmic capability:** `Scheduler.next_available_slot()` (agent workflow documented in `ai_interactions.md`).
 - **Data persistence:** `Owner.save_to_json()` and `Owner.load_from_json()` in `pawpal_system.py`. `app.py` loads `data.json` into `st.session_state` on first run and saves after every change; `main.py` demonstrates a save and reload. `data.json` is git-ignored. Files modified: `pawpal_system.py`, `app.py`, `main.py`, `tests/test_pawpal.py`.
 - **Advanced priority scheduling:** `Task.priority` (low, medium, high) and `Scheduler.sort_by_priority()`; the "By priority, then time" table in the CLI output above shows it.
+- **Multi-model prompt comparison:** Claude vs OpenAI Codex (`gpt-5.6-terra`) on recurrence and conflict logic; two of its suggestions were adopted (overlap-based conflicts, idempotent completion) and one rejected. Full table in `ai_interactions.md`.
 - **Professional output formatting:** `main.py` prints an aligned table using f-string column widths with emoji for species (🐶 🐱), priority (🔴 🟡 🟢), and status (✅ ⏳); the UI uses the same icons. No external library was needed.
 
 ## 📸 Demo Walkthrough

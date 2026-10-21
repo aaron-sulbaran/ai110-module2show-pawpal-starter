@@ -35,13 +35,13 @@ Using Claude Code as the agent, I asked it to build PawPal+ end to end from the 
 
 | | Option A | Option B |
 |-|----------|----------|
-| **Model / tool used** | | |
-| **Prompt** | | |
-| **Response summary** | | |
-| **What was useful** | | |
-| **Problems noticed** | | |
-| **Decision** | | |
+| **Model / tool used** | Claude Sonnet 5.5 via Claude Code (wrote the original `pawpal_system.py`) | OpenAI Codex CLI 0.163.0, model `gpt-5.6-terra`, read-only sandbox |
+| **Prompt** | Build recurrence and conflict detection as part of the full PawPal+ spec | "Independently design (1) rescheduling of recurring daily/weekly tasks and (2) cross-pet conflict detection, writing your own code before reading mine. Then read `Task.mark_complete` and `Scheduler.detect_conflicts` and list where your design disagrees, ranked. Under 400 words. Do not edit files." |
+| **Response summary** | Recurrence from the old `due_date` plus `timedelta`; conflicts grouped by exact `(date, "HH:MM")` slot. | Same recurrence rule, plus an `if self.completed: return None` guard. Conflicts by pairwise time-range overlap, skipping pairs from the same pet. |
+| **What was useful** | Simple, readable, never raises. | Found that exact-time matching misses overlaps (a 30 min task at 08:00 and a task at 08:15 were not flagged), and that completing a recurring task twice created duplicate future tasks. Also confirmed scheduling from the previous due date (not today) avoids cadence drift. |
+| **Problems noticed** | Exact-time conflicts were inconsistent with `next_available_slot`, which already used durations. No guard against double completion. | Its same-pet exclusion contradicts the spec ("same pet (or different pets)"), and it only listed generic conflict text with no times. |
+| **Decision** | Kept the recurrence rule. | Adopted overlap-based conflict detection and the idempotent completion guard (3 new tests). Rejected the same-pet exclusion because a pet cannot be walked and medicated at once. |
 
 **Which approach did you use in your final implementation and why?**
 
-<!-- Your conclusion -->
+A hybrid. Recurrence stays as originally written plus Codex's idempotence guard. Conflict detection now compares start + duration ranges (Codex's idea) but still checks same-pet pairs (my original behavior, which matches the spec). Back-to-back tasks (one ends exactly when the next starts) are deliberately not conflicts. Verified with 15 passing tests.
